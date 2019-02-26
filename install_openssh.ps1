@@ -1,73 +1,81 @@
-Write-Verbose 'Installing OpenSSH'
-$Oshsourcepath = '\\teles\install\Microsoft\OpenSSH\OpenSSH-Win64.zip'
-$oshfile = Split-path $Oshsourcepath -Leaf
+#'Installing OpenSSH'
+$Oshsourceuri = 'https://github.com/PowerShell/Win32-OpenSSH/releases/download/v7.9.0.0p1-Beta/OpenSSH-Win64.zip'
+$oshfile = Split-path $Oshsourceuri -Leaf
 $targetpath = 'c:\temp\'
-$Servername = 'Teles.thegalaxy.local'
+#$Servers = 'esflovian.thegalaxy.local'
+$Servers = 'oglaroon.thegalaxy.local'
 
-$cs = New-pssession -ComputerName $Servername
-
-Write-Verbose 'Installing OpenSSH'
-Invoke-command -Session $cs -ScriptBlock {
+foreach ($Server in $Servers) {
+    $cs = New-pssession -ComputerName $Server
+    Write-Verbose 'Installing OpenSSH'
+    Invoke-command -Session $cs -ScriptBlock {
     Write-Verbose 'Test if target path exists, otherwise create'
     if (!(test-path $using:targetpath)) {
         New-Item -ItemType Directory -Path $using:targetpath -InformationAction SilentlyContinue
     }
     
     write-verbose 'Construct targetpath'
-    $filename = split-path $using:Oshsourcepath -Leaf
-    $filepath = $using:Oshsourcepath + $filename
+    $targetfilepath = $using:targetpath + $using:oshfile
     
-    Write-Verbose 'Copy and unblock File'
-    if (!(Test-Path -Path $filepath)) {
-        Copy-Item -Path $using:Sourcepath -Destination $using:targetpath -InformationAction SilentlyContinue
-        Unblock-File -Path $filepath -InformationAction SilentlyContinue
+        # DL and unblock File with webrequest
+        if (!(Test-Path -Path $targetfilepath)) {
+            [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+            Invoke-WebRequest -Uri $using:oshsourceuri -OutFile $targetfilepath
+            Unblock-File -Path $targetfilepath # -InformationAction SilentlyContinue
+        }
+
+        Write-verbose 'Install OpennSSH Daemon'
+        $destpath = 'C:\Program Files\'
+        #$instfilename = '.\install_sshd'
+        Expand-Archive -Path $targetfilepath -DestinationPath $destpath -Force
+        start-sleep 5
+        #Set-Location "$destpath\OpenSSH-Win64"
+        #get-location
+        & "C:\Program Files\OpenSSH-Win64\install-sshd.ps1"
+
+        start-service sshd
+        start-sleep 5
+        stop-service sshd
+
+        
+        # Backup SSH config file
+        copy-item "C:\ProgramData\ssh\sshd_config" -Destination "C:\ProgramData\ssh\sshd_config_original"
+
+        # Change PasswordAuthentication to yes
+        $origfile = Get-content "C:\ProgramData\ssh\sshd_config_original"
+        $origfile |ForEach-Object {
+            if ($_ -eq "#PasswordAuthentication yes") {
+                $_ -replace "#PasswordAuthentication yes", "PasswordAuthentication yes"} 
+            else {$_} 
+        } | Set-Content "C:\ProgramData\ssh\sshd_config" -Force
+
+        # Change PublicKeyAuthentication to yes
+        $origfile = Get-content "C:\ProgramData\ssh\sshd_config"
+        $origfile |foreach-object {
+            if ($_ -eq "#PubkeyAuthentication yes") {
+                $_ -replace "#PubkeyAuthentication yes", "PubkeyAuthentication yes"} 
+            else {$_} 
+        } | Set-Content "C:\ProgramData\ssh\sshd_config" -Force
+
+        # Create Symlink
+        if (!(test-path 'c:\pwsh')) {
+            New-Item -Path c:\pwsh -ItemType SymbolicLink -Value "C:\Program Files\PowerShell\6"
+        }
+        #$replacestring = 'Subsystem    powershell c:\pwsh\pwsh.exe -sshs -NoLogo -NoProfile'
+
+        $origfile = Get-content "C:\ProgramData\ssh\sshd_config"
+        $origfile |ForEach-Object {
+            if ($_ -eq "Subsystem	sftp	sftp-server.exe") {
+                $_ -replace "Subsystem	sftp	sftp-server.exe", "Subsystem    powershell c:\pwsh\pwsh.exe -sshs -NoLogo -NoProfile"} 
+            else {$_} 
+        } | Set-Content "C:\ProgramData\ssh\sshd_config" -Force
+
+        Set-Service sshd -StartupType Automatic
+        Restart-Service sshd
     }
-
-    Write-verbose 'Install OpennSH Daemon'
-    $destpath = 'C:\Program Files\'
-    $instfilename = '.\install_sshd'
-    Expand-Archive -Path $filepath -DestinationPath $destpath -Force
-    Set-Loction $destpath
-    .\install_openssh.ps1
-
-    start-service sshd
-    stop-service sshd
-
-    $programdatapath = 'c:\programdata'
-    copy-item "$programdata\sshd_config" -Destination "$programdata\sshd_config_original"
-
-    # Change PasswordAuthentication to yes
-    $origfile = Get-content "$programdatapath\sshd_config"
-    $origfile |foreach {
-        if ($_ -eq "#PasswordAuthentication yes") {
-            $_ -replace "#PasswordAuthentication yes", "PasswordAuthentication yes"} 
-        else {$_} 
-    } | Set-Content .\ssh_confignew -Force
-
-    # Change PublicKeyAuthentication to yes
-    $origfile = Get-content "$programdatapath\sshd_config"
-    $origfile |foreach {
-        if ($_ -eq "#PublicKeyAuthentication yes") {
-            $_ -replace "#PublicKeyAuthentication yes", "PublicKeyAuthentication yes"} 
-        else {$_} 
-    } | Set-Content .\ssh_confignew -Force
-
-    # Create Symlink
-    mklink /D c:\pwsh "C:\Program Files\PowerShell\6"
-    $replacestring = 'Subsystem    powershell c:\pwsh\pwsh.exe -sshs -NoLogo -NoProfile'
-
-    $origfile = Get-content "$programdatapath\sshd_config"
-
-    $origfile |foreach {
-        if ($_ -eq "Subsystem	sftp	sftp-server.exe") {
-            $_ -replace "Subsystem	sftp	sftp-server.exe", "Subsystem    powershell c:\pwsh\pwsh.exe -sshs -NoLogo -NoProfile"} 
-        else {$_} 
-    } | Set-Content .\ssh_confignew -Force
-
-    Start-Service sshd
 }
 
-
-
+<#
 $origfile |foreach {if ($_ -eq "#PasswordAuthentication yes") {$_ -replace "#PasswordAuthentication yes", "PasswordAu
 thentication yes"} else {$_} }|Set-Content .\ssh_confignew -Force
+#>
