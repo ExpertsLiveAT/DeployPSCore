@@ -1,4 +1,4 @@
-$se = New-PSSession -ComputerName esflovian
+$se = New-PSSession -ComputerName servername
 
 Enter-PSSession $se
 # Kann man PSCore nachinstallieren ?
