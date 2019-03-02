@@ -1,9 +1,5 @@
 
-
-
-#$Servers = 'oglaroon.thegalaxy.local','esflovian.thegalaxy.local'
-$Servers = 'esflovian.thegalaxy.local'
-$Servers = 'oglaroon.thegalaxy.local'
+$Servers = 'server1, server2'
 
 foreach ($Server in $Servers) {
     # UNInstalling PSCore
