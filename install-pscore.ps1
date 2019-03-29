@@ -1,10 +1,8 @@
-$ServersAD = Get-ADComputer -SearchBase 'OU=Servers,OU=Hardware,DC=thegalaxy,DC=local' -Filter '*' |select-object -expandproperty DNSHostname
+# Adapt this to your AD
+$searchbase = 'OU=Servers,OU=Hardware,DC=thegalaxy,DC=local'
+$Servers = Get-ADComputer -SearchBase $searchbase -Filter '*' |select-object -expandproperty DNSHostname
 
-$Servers = 'esflovian.thegalaxy.local' ,'oglaroon.thegalaxy.local'
-$Servers = 'esflovian.thegalaxy.local'
-$Servers = 'oglaroon.thegalaxy.local'
-
-$msiurl = 'https://github.com/PowerShell/PowerShell/releases/download/v6.1.3/PowerShell-6.1.3-win-x64.msi'
+$msiurl = 'https://github.com/PowerShell/PowerShell/releases/download/v6.2.0/PowerShell-6.2.0-win-x64.msi'
 $sourcefilename = Split-Path $msiurl -Leaf
 #$sourcefilepath = 'c:\temp\' + $sourcefilename
 $targetpath = 'c:\temp\'
